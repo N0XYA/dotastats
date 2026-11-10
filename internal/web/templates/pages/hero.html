@@ -1,0 +1,73 @@
+{{define "content"}}{{$d := .Data}}{{$c := .C}}{{$s := $d.Summary}}
+<section class="hero-head">
+  {{with $c.HeroImage $d.HeroID}}<img src="/assets/{{.}}" alt="" width="128" height="72">{{end}}
+  <div>
+    <h1>{{$c.HeroName $d.HeroID}}</h1>
+    <p class="muted"><a href="/heroes">← Все герои</a> · {{.Profile.DisplayName}}</p>
+  </div>
+</section>
+{{template "filter_bar" .}}
+<div id="results">
+{{if eq $s.Record.Games 0}}
+<p class="card empty-state">Игр на этом герое{{if $d.Filter.ShowClear}} с такими фильтрами{{end}} нет.</p>
+{{else}}
+<section class="tiles">
+  <div class="tile"><span class="tile-label">Игр</span><span class="tile-value">{{$s.Record.Games}}</span><span class="tile-sub">последняя {{template "date" $s.LastPlayed}}</span></div>
+  <div class="tile"><span class="tile-label">Винрейт</span><span class="tile-value">{{pct $s.Record.WinRate}}</span><span class="tile-sub">{{$s.Record.Wins}} побед · {{$s.Record.Losses}} поражений</span></div>
+  <div class="tile"><span class="tile-label">KDA</span><span class="tile-value">{{f2 $s.KDA}}</span><span class="tile-sub">{{f1 $s.Kills}} / {{f1 $s.Deaths}} / {{f1 $s.Assists}} в среднем</span></div>
+  <div class="tile"><span class="tile-label">GPM / XPM</span><span class="tile-value">{{numf $s.GPM}}</span><span class="tile-sub">{{numf $s.XPM}} XPM</span></div>
+  <div class="tile"><span class="tile-label">Линии к 10:00</span><span class="tile-value">{{if $d.Lanes.Total}}{{$d.Lanes.Won}} : {{$d.Lanes.Lost}}{{else}}—{{end}}</span><span class="tile-sub">{{if $d.Lanes.Total}}выиграно : проиграно, ровно {{$d.Lanes.Even}}, всего {{$d.Lanes.Total}}{{else}}нужны разобранные игры{{end}}</span></div>
+</section>
+
+<section class="card">
+  <h2>Динамика</h2>
+  <p class="muted small">Точки — GPM в каждой игре (зелёная — победа, красная — поражение), линия — винрейт за последние 10 игр. Турбо сильно завышает GPM: отфильтруйте режим, если нужно.</p>
+  <div class="chart"><canvas data-chart="trend" data-source="hero-data" aria-label="GPM и винрейт по играм"></canvas></div>
+</section>
+
+<div class="grid-2">
+<section class="card">
+  <h2>Тайминги ключевых предметов</h2>
+  {{if $d.CoreItems}}
+  <p class="muted small">Предметы от 1 200 золота, купленные хотя бы в четверти из {{count $d.ParsedGames "разобранной игры" "разобранных игр" "разобранных игр"}}: среднее время первой покупки за всё время и за последние 5 игр.</p>
+  <table class="table">
+    <thead><tr><th>Предмет</th><th class="num">Игр</th><th class="num">В среднем</th><th class="num">Последние</th><th class="num">Разница</th></tr></thead>
+    <tbody>{{range $d.CoreItems}}<tr>
+      <td><span class="item-inline">{{if .Item.ImgPath}}<img src="/assets/{{.Item.ImgPath}}" alt="" width="32" height="23">{{end}}{{.Item.Name}}</span></td>
+      <td class="num">{{.Games}} <small class="muted">{{pct .Share}}</small></td>
+      <td class="num">{{clock .AvgTime}}</td>
+      {{if lt .RecentN .Games}}<td class="num">{{clock .RecentTime}}</td>
+      <td class="num"><span class="delta {{if le .Delta 0.0}}good{{else}}bad{{end}}">{{dclock .Delta}}</span></td>
+      {{else}}<td class="num muted">—</td><td class="num muted">—</td>{{end}}
+    </tr>{{end}}</tbody>
+  </table>
+  {{else if $d.ParsedGames}}<p class="not-parsed">Ни один предмет от 1 200 золота не покупался хотя бы в четверти из {{count $d.ParsedGames "разобранной игры" "разобранных игр" "разобранных игр"}}.</p>
+  {{else}}<p class="not-parsed">Нужны разобранные игры: тайминги берутся из журнала покупок.</p>{{end}}
+</section>
+
+<section class="card">
+  <h2>Перцентили по играм</h2>
+  {{if $d.Benchmarks}}
+  <p class="muted small">Насколько вы лучше других игроков на этом герое в каждой игре (по данным OpenDota).</p>
+  <div class="chart"><canvas data-chart="benchmarks" data-source="hero-data" aria-label="Перцентили по играм"></canvas></div>
+  {{else}}<p class="not-parsed">Данных пока нет: они появляются вместе с полными данными матчей.</p>{{end}}
+</section>
+</div>
+
+<div class="grid-2">
+{{range $side := (strings "with" "against")}}{{$rows := $d.With}}{{if eq $side "against"}}{{$rows = $d.Against}}{{end}}
+<section class="card">
+  <h2>{{if eq $side "with"}}С союзниками{{else}}Против врагов{{end}}</h2>
+  {{if $rows}}
+  <table class="table">
+    <thead><tr><th>Герой</th><th class="num">Игр</th><th class="num">Ваш винрейт</th></tr></thead>
+    <tbody>{{range $rows}}<tr><td>{{template "hero" (dict "C" $c "ID" .HeroID)}}</td><td class="num">{{.Record.Games}}</td><td class="num"><span class="wr {{if ge .Record.WinRate 0.5}}good{{else}}bad{{end}}">{{pct .Record.WinRate}}</span></td></tr>{{end}}</tbody>
+  </table>
+  {{else}}<p class="not-parsed">Нужны полные данные матчей: остальные игроки известны только после полной загрузки матча.</p>{{end}}
+</section>
+{{end}}
+</div>
+<script type="application/json" id="hero-data">{{$d.Charts}}</script>
+{{end}}
+</div>
+{{end}}

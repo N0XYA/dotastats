@@ -1,0 +1,32 @@
+{{define "content"}}
+<h1>Герои</h1>
+{{template "filter_bar" .}}
+{{template "hero_table" .}}
+{{end}}
+
+{{define "hero_table"}}{{$d := .Data}}{{$c := .C}}{{$q := .Query}}
+<div id="results">
+  {{if $d.Rows}}
+  <p class="muted small">Нажмите на заголовок столбца, чтобы отсортировать, или на героя, чтобы открыть подробности.</p>
+  <div class="table-wrap">
+  <table class="table heroes">
+    <thead><tr>
+      <th>Герой</th>
+      {{range $col := (strings "games" "wr" "kda" "gpm" "xpm" "last")}}<th class="num{{if eq $d.Sort $col}} sorted{{end}}"><a href="{{query $q "sort" $col}}" hx-get="{{query $q "sort" $col}}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">{{if eq $col "games"}}Игр{{else if eq $col "wr"}}Винрейт{{else if eq $col "kda"}}KDA{{else if eq $col "gpm"}}GPM{{else if eq $col "xpm"}}XPM{{else}}Последняя игра{{end}}</a></th>{{end}}
+    </tr></thead>
+    <tbody>{{range $d.Rows}}<tr>
+      <td><a href="/heroes/{{.HeroID}}{{query $q "sort" ""}}">{{template "hero" (dict "C" $c "ID" .HeroID)}}</a></td>
+      <td class="num">{{.Record.Games}}</td>
+      <td class="num"><span class="wr {{if ge .Record.WinRate 0.5}}good{{else}}bad{{end}}">{{pct .Record.WinRate}}</span> <small class="muted">{{.Record.Wins}}–{{.Record.Losses}}</small></td>
+      <td class="num">{{f2 .KDA}} <small class="muted">{{f1 .Kills}}/{{f1 .Deaths}}/{{f1 .Assists}}</small></td>
+      <td class="num">{{numf .GPM}}</td>
+      <td class="num">{{numf .XPM}}</td>
+      <td class="num">{{template "date" .LastPlayed}}</td>
+    </tr>{{end}}</tbody>
+  </table>
+  </div>
+  {{else}}
+  <p class="card empty-state">Игр{{if $d.Filter.ShowClear}} с такими фильтрами{{end}} нет.</p>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,13 @@
+services:
+  dotastats:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    image: dotastats:local
+    container_name: dotastats
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 256m
+    volumes:
+      - ./data:/data

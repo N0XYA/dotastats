@@ -1,0 +1,66 @@
+{{define "content"}}{{$o := .Data}}{{$c := .C}}
+<section class="profile-head">
+  <div>
+    <h1>{{.Profile.DisplayName}}</h1>
+    <p class="muted">{{rank .Profile.RankTier}} · {{count .Profile.Matches "матч" "матча" "матчей"}} в базе{{if .Profile.LastSyncedAt}} · обновлено {{template "time" .Profile.LastSyncedAt}}{{end}}{{if not .Profile.Active}} · <span class="badge muted">на паузе</span>{{end}}</p>
+  </div>
+</section>
+
+{{if eq $o.All.Games 0}}
+<section class="card empty-state">
+  <h2>Матчей пока нет</h2>
+  <p>Первый сбор идёт в фоне и загружает всю историю матчей; страница заполнится, как только он закончится. Ход работы — на странице <a href="/status">«Статус»</a>.</p>
+</section>
+{{else}}
+<section class="tiles">
+  <div class="tile"><span class="tile-label">Винрейт за всё время</span><span class="tile-value">{{pct $o.All.WinRate}}</span><span class="tile-sub">{{$o.All.Wins}} побед · {{$o.All.Losses}} поражений</span></div>
+  <div class="tile"><span class="tile-label">За 30 дней</span><span class="tile-value">{{if $o.Last30Days.Games}}{{pct $o.Last30Days.WinRate}}{{else}}—{{end}}</span><span class="tile-sub">{{$o.Last30Days.Wins}} побед · {{$o.Last30Days.Losses}} поражений</span></div>
+  <div class="tile"><span class="tile-label">Патч {{or $o.PatchName "—"}}</span><span class="tile-value">{{if $o.Patch.Games}}{{pct $o.Patch.WinRate}}{{else}}—{{end}}</span><span class="tile-sub">{{$o.Patch.Wins}} побед · {{$o.Patch.Losses}} поражений</span></div>
+</section>
+
+<section class="card">
+  <h2>Последние {{count (len $o.Recent) "матч" "матча" "матчей"}}</h2>
+  <div class="strip">
+    {{range $o.Recent}}<a class="strip-cell {{result .Win}}" href="/matches/{{.MatchID}}" title="{{$c.HeroName .HeroID}} · {{.Kills}}/{{.Deaths}}/{{.Assists}} · {{duration .Duration}}">{{template "hero_icon" (dict "C" $c "ID" .HeroID)}}<span>{{if eq (result .Win) "win"}}П{{else if eq (result .Win) "loss"}}Л{{else}}?{{end}}</span></a>{{end}}
+  </div>
+  <p class="muted small">П — победа, Л — поражение. Нажмите на матч, чтобы открыть разбор.</p>
+</section>
+
+<section class="card">
+  <h2>Привычки и повторяющиеся ошибки</h2>
+  {{with $o.Habits}}{{if .Games}}
+  <p class="muted small">По последним {{count .Games "разобранному матчу" "разобранным матчам" "разобранным матчам"}}. Пометка «оценка» — вывод по правилам, а не факт.</p>
+  <table class="table habits">
+    <tbody>{{range .Rows}}<tr class="{{.Severity}}"><td>{{.Label}}{{if .Heuristic}} <span class="heuristic">оценка</span>{{end}}</td><td class="num">{{.Value}}</td>
+      <td class="judge">{{if eq .Severity "good"}}✓ хорошо{{else if eq .Severity "bad"}}✗ стоит поработать{{end}}</td></tr>{{end}}</tbody>
+  </table>
+  {{if .Patterns}}
+  <h3>Что бросается в глаза</h3>
+  <ul class="patterns">{{range .Patterns}}<li class="{{.Severity}}"><span class="bar"><span style="{{pctBar .Share}}"></span></span>{{.Text}}</li>{{end}}</ul>
+  {{end}}
+  {{else}}
+  <p class="muted">Привычки появятся, когда матчи будут разобраны: свежие матчи отправляются на разбор сами, старые — кнопкой на странице матча.</p>
+  {{end}}{{end}}
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Самые частые герои</h2>
+    <table class="table">
+      <thead><tr><th>Герой</th><th class="num">Игр</th><th class="num">Винрейт</th><th class="num">KDA</th></tr></thead>
+      <tbody>{{range $o.TopHeroes}}<tr><td><a href="/heroes/{{.HeroID}}">{{template "hero" (dict "C" $c "ID" .HeroID)}}</a></td><td class="num">{{.Record.Games}}</td><td class="num">{{pct .Record.WinRate}}</td><td class="num">{{f2 .KDA}}</td></tr>{{end}}</tbody>
+    </table>
+    <p class="more"><a href="/heroes">Все герои →</a></p>
+  </section>
+  <section class="card">
+    <h2>Последние 30 дней и 30 дней до этого</h2>
+    <table class="table">
+      <thead><tr><th>В среднем за игру</th><th class="num">30 дней</th><th class="num">До этого</th><th class="num">Изменение</th></tr></thead>
+      <tbody>{{range $o.Averages}}<tr><td>{{.Label}}</td><td class="num">{{avg .Recent}}</td><td class="num">{{avg .Previous}}</td>
+        <td class="num">{{if and .Recent .Previous}}<span class="delta {{if .Improved}}good{{else}}bad{{end}}">{{signed .Delta}}</span>{{else}}—{{end}}</td></tr>{{end}}</tbody>
+    </table>
+  </section>
+</div>
+{{if $o.DetailsPending}}<p class="note">Для {{count $o.DetailsPending "матча" "матчей" "матчей"}} ещё не загружены полные данные. Они подгружаются понемногу в рамках дневного лимита запросов; основные цифры уже учтены.</p>{{end}}
+{{end}}
+{{end}}

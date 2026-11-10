@@ -1,0 +1,351 @@
+{{define "content"}}{{$m := .Data}}{{$c := .C}}{{$a := $m.Analysis}}
+<section class="match-banner{{if $m.Mine}} {{result $m.Mine.Win}}{{end}}">
+  <div class="mb-main">
+    {{with $m.Me}}{{with $c.HeroImage .HeroID}}<img class="mb-hero" src="/assets/{{.}}" alt="" width="128" height="72">{{end}}{{end}}
+    <div>
+      <h1>{{if $m.Mine}}{{template "result" $m.Mine.Win}}{{with $m.Me}} на {{$c.HeroName .HeroID}}{{end}}{{else}}Матч {{$m.MatchID}}{{end}}</h1>
+      <p class="muted">
+        {{if $m.Mine}}Матч {{$m.MatchID}} · {{end}}{{$c.GameMode $m.GameMode}} · {{$c.LobbyType $m.LobbyType}}{{with $c.PatchName $m.Patch}} · патч {{.}}{{end}} ·
+        {{duration $m.Duration}} · {{template "time" $m.StartTime}}{{if $m.AvgRankTier}} · средний ранг: {{rank $m.AvgRankTier}}{{end}}
+      </p>
+      {{with $m.Me}}<p class="mb-kda"><b>{{.Kills}}</b> / <b>{{.Deaths}}</b> / <b>{{.Assists}}</b> · {{num .GPM}} GPM · {{num .NetWorth}} нетворс</p>{{end}}
+    </div>
+  </div>
+  <div class="mb-side">
+    <div class="match-score">
+      <span class="radiant">{{$m.RadiantScore}}</span><span class="dash">:</span><span class="dire">{{$m.DireScore}}</span>
+    </div>
+    <div class="score-teams"><span class="radiant{{if eq (result $m.RadiantWin) "win"}} winner{{end}}">Силы Света</span><span class="dire{{if eq (result $m.RadiantWin) "loss"}} winner{{end}}">Силы Тьмы</span></div>
+    <div class="match-links">{{template "parse_badge" $m}} <a href="https://www.opendota.com/matches/{{$m.MatchID}}" rel="noreferrer">Открыть на OpenDota ↗</a></div>
+  </div>
+</section>
+
+{{if not $m.HasDetails}}
+<p class="note">Для этого матча пока сохранены только основные цифры отслеживаемых игроков. Полные данные подгружаются в фоне в рамках дневного лимита запросов, тогда появится и разбор.</p>
+{{else if not $m.IsParsed}}
+<p class="note">Реплей не разобран, поэтому доступны только итоговые цифры. Запросите разбор, чтобы получить линии, хронологию, карту, варды и чат.</p>
+{{end}}
+
+<nav class="tabs" data-tabs role="tablist">
+  <button type="button" data-tab="summary">Сводка</button>
+  <button type="button" data-tab="timeline">Хронология</button>
+  <button type="button" data-tab="map">Карта</button>
+  <button type="button" data-tab="lanes">Линии</button>
+  <button type="button" data-tab="vision">Варды</button>
+  <button type="button" data-tab="scoreboard">Статистика</button>
+  <button type="button" data-tab="graphs">Графики</button>
+  <button type="button" data-tab="chat">Чат{{with $a.Chat}} <small>{{len .}}</small>{{end}}</button>
+</nav>
+
+{{/* ---------------- Сводка ---------------- */}}
+<div data-panel="summary">
+  {{with $m.Me}}{{$pa := index $a.Players .Slot}}{{if $pa.Rating}}
+  <section class="me-section">
+    <h2>Ваша игра</h2>
+    {{template "pcard" (dict "C" $c "P" . "A" $pa "Main" true)}}
+  </section>
+  {{end}}{{end}}
+
+  {{if or $a.Team $a.WinChance}}
+  <div class="grid-2 summary-top">
+    <section class="card">
+      <h2>Ключевые моменты</h2>
+      {{if $a.Team}}
+      <ul class="moments">
+        {{range $a.Team}}<li class="{{.Severity}}">{{with .Time}}{{if $a.Parsed}}<button type="button" class="t seek" data-seek="{{.}}" title="Показать на карте">{{clock .}}</button>{{else}}<span class="t">{{clock .}}</span>{{end}}{{else}}<span class="t">—</span>{{end}}<span>{{.Text}}{{if .Judgment}} <span class="heuristic" title="Это оценка по правилам, а не факт">оценка</span>{{end}}</span></li>{{end}}
+      </ul>
+      {{else}}<p class="muted">Нужен разобранный реплей.</p>{{end}}
+    </section>
+    <section class="card">
+      <h2>Шанс победы <span class="heuristic" title="Примерная оценка по преимуществу в золоте и опыте, а не обученная модель">оценка</span></h2>
+      {{if $a.WinChance}}
+      <div class="chart"><canvas data-chart="winchance" data-source="chart-data" aria-label="Примерный шанс победы Сил Света по минутам"></canvas></div>
+      <p class="muted small">Шанс Сил Света по минутам, посчитанный по разнице в золоте и опыте. Выше 50% — впереди Силы Света.</p>
+      {{else}}<p class="muted">Нужен разобранный реплей.</p>{{end}}
+    </section>
+  </div>
+  {{end}}
+
+  {{if $a.Analyzed}}
+  <section class="teams">
+    {{range $team := (list 0 1)}}{{$players := $m.Radiant}}{{$side := "radiant"}}{{if eq $team 1}}{{$players = $m.Dire}}{{$side = "dire"}}{{end}}
+    <div class="team-col {{$side}}">
+      <h2>{{team $side}}{{if or (and (eq $side "radiant") (eq (result $m.RadiantWin) "win")) (and (eq $side "dire") (eq (result $m.RadiantWin) "loss"))}} <span class="winner-tag">победа</span>{{end}}</h2>
+      {{range $players}}{{template "pcard" (dict "C" $c "P" . "A" (index $a.Players .Slot) "Main" false)}}{{end}}
+    </div>
+    {{end}}
+  </section>
+  <p class="muted small">Оценка влияния, исход линии и советы считаются по правилам из перцентилей OpenDota, линии и смертей. Это подсказки, а не приговор: например, поддержку они недооценивают.</p>
+  {{else}}
+  <p class="not-parsed">Разбора пока нет: он считается, когда сохраняются полные данные матча.</p>
+  {{end}}
+</div>
+
+{{/* ---------------- Хронология ---------------- */}}
+<div data-panel="timeline">
+  <section class="card">
+    <h2>Хронология матча</h2>
+    {{if $a.Timeline}}
+    <div class="timeline-filters">
+      <label>Игрок <select data-timeline-player><option value="">Все</option>{{with $m.Me}}<option value="{{.Slot}}">Только я ({{$c.HeroName .HeroID}})</option>{{end}}{{range (concat $m.Radiant $m.Dire)}}<option value="{{.Slot}}">{{$c.HeroName .HeroID}}{{with .Name}} · {{.}}{{end}}</option>{{end}}</select></label>
+      <label class="check"><input type="checkbox" data-timeline-kind="fact" checked> События</label>
+      <label class="check"><input type="checkbox" data-timeline-kind="judgment" checked> Находки анализа</label>
+    </div>
+    <ol class="timeline">
+      {{range $a.Timeline}}<li class="{{.Team}} {{.Severity}}{{if .Judgment}} judgment{{end}}" data-slots="{{range $i, $s := .Slots}}{{if $i}} {{end}}{{$s}}{{end}}" data-kind="{{if .Judgment}}judgment{{else}}fact{{end}}">
+        {{if $a.Parsed}}<button type="button" class="t seek" data-seek="{{.Time}}" title="Показать на карте">{{clock .Time}}</button>{{else}}<span class="t">{{clock .Time}}</span>{{end}}<span class="kind">{{kindName .Kind}}</span><span class="text">{{.Text}}</span>
+      </li>{{end}}
+    </ol>
+    <p class="muted small">Цвет точки — команда, которой событие выгодно. Красным выделены находки анализа: это оценки по правилам.</p>
+    {{else}}<p class="not-parsed">Для хронологии нужен разобранный реплей.</p>{{end}}
+  </section>
+</div>
+
+{{/* ---------------- Карта ---------------- */}}
+<div data-panel="map">
+  <section class="card map-card">
+    <h2>Карта матча</h2>
+    {{if $a.Parsed}}
+    <div class="map-layout" data-map>
+      <div class="map-wrap">
+        <svg class="map" viewBox="0 0 128 128" role="img" aria-label="Карта матча: строения, варды и смерти в драках на выбранную минуту">
+          <defs>
+            <linearGradient id="m-ground" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#1e2c1b"/><stop offset="0.5" stop-color="#20241c"/><stop offset="1" stop-color="#2b1e1a"/>
+            </linearGradient>
+            <pattern id="m-trees" width="6" height="6" patternUnits="userSpaceOnUse">
+              <circle cx="1.4" cy="1.6" r="1.3" fill="#000" fill-opacity="0.3"/><circle cx="4.3" cy="2.5" r="1.5" fill="#000" fill-opacity="0.26"/><circle cx="2.8" cy="4.8" r="1.2" fill="#000" fill-opacity="0.28"/>
+              <circle cx="1.1" cy="1.2" r="0.6" fill="#9cc77a" fill-opacity="0.07"/><circle cx="4" cy="2.1" r="0.7" fill="#9cc77a" fill-opacity="0.07"/><circle cx="2.5" cy="4.4" r="0.55" fill="#9cc77a" fill-opacity="0.07"/>
+            </pattern>
+            <path id="m-river" d="M-4 36 C20 44 40 56 64 64 S108 84 132 92"/>
+            <path id="m-base" d="M0 128 V90 Q0 86 4 86 H22 A20 20 0 0 1 42 106 V124 Q42 128 38 128 Z"/>
+            <path id="m-roads" d="M15.5 100 V22 Q15.5 15.5 22 15.5 H96 M32 112.5 H106 Q112.5 112.5 112.5 106 V28 M24 104 L104 24 M18 110 L15.5 100 M18 110 L32 112.5 M18 110 L24 104 M110 18 L112.5 28 M110 18 L96 15.5 M110 18 L104 24"/>
+            <clipPath id="m-round" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.5"/></clipPath>
+          </defs>
+          <rect width="128" height="128" fill="url(#m-ground)"/>
+          <rect width="128" height="128" fill="url(#m-trees)"/>
+          <g fill="none" stroke-linecap="round">
+            <use href="#m-river" stroke="#122b3f" stroke-width="10"/>
+            <use href="#m-river" stroke="#1a4462" stroke-width="7"/>
+            <use href="#m-river" stroke="#2f7099" stroke-width="1.6" stroke-opacity="0.5" stroke-dasharray="4 3"/>
+          </g>
+          <use href="#m-base" fill="#25341f" stroke="#4f7d3d" stroke-width="0.7"/>
+          <use href="#m-base" transform="rotate(180 64 64)" fill="#36231f" stroke="#8a4433" stroke-width="0.7"/>
+          <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <use href="#m-roads" stroke="#3b3223" stroke-width="4.2"/>
+            <use href="#m-roads" stroke="#6b5a3d" stroke-width="2.5"/>
+          </g>
+          <g class="fountain radiant" transform="translate(9 115)"><circle r="3.6"/><circle r="1.5"/></g>
+          <g class="fountain dire" transform="translate(119 13)"><circle r="3.6"/><circle r="1.5"/></g>
+          <g data-map-layer="vision"></g>
+          <g data-map-layer="buildings">{{range $m.MapBuildings}}
+            <g class="bld {{.Kind}} {{.Team}}" data-key="{{.Key}}" transform="translate({{.PX}} {{.PY}})"><title>{{.Name}}</title>{{if eq .Kind "ancient"}}<polygon class="b-body" points="0,-3.4 2.95,-1.7 2.95,1.7 0,3.4 -2.95,1.7 -2.95,-1.7"/><circle class="b-core" r="1.2"/>{{else if eq .Kind "rax melee"}}<rect class="b-body" x="-1.9" y="-1.25" width="3.8" height="2.5" rx="0.45"/>{{else if eq .Kind "rax"}}<rect class="b-body" x="-1.5" y="-1" width="3" height="2" rx="0.4"/>{{else}}<rect class="b-body" x="-1.7" y="-1.7" width="3.4" height="3.4" rx="0.7"/><rect class="b-core" x="-0.65" y="-0.65" width="1.3" height="1.3" rx="0.3"/>{{end}}<path class="b-x" d="M-1.1 -1.1 L1.1 1.1 M1.1 -1.1 L-1.1 1.1"/><circle class="b-flash" r="3.4"/></g>{{end}}
+          </g>
+          <g data-map-layer="wards"></g>
+          <g data-map-layer="fights"></g>
+          <g data-map-layer="deaths"></g>
+        </svg>
+      </div>
+      <div class="map-side">
+        <div class="map-status">
+          <div><span>Золото</span><b data-map-stat="gold">—</b></div>
+          <div><span>Рошан</span><b data-map-stat="roshan">жив</b></div>
+          <div><span>Аегис</span><b data-map-stat="aegis">—</b></div>
+        </div>
+        {{range $team := (list 0 1)}}{{$players := $m.Radiant}}{{$side := "radiant"}}{{if eq $team 1}}{{$players = $m.Dire}}{{$side = "dire"}}{{end}}
+        <div class="roster {{$side}}">
+          <div class="roster-head"><span>{{team $side}}</span><span class="r-score" data-map-score="{{$side}}">0</span></div>
+          <table class="roster-table">
+            <thead><tr><th colspan="2"></th><th>У / С</th><th>Доб.</th><th>Золото</th></tr></thead>
+            <tbody>{{range $players}}<tr data-slot="{{.Slot}}" data-hero="{{$c.HeroName .HeroID}}"{{if .Tracked}} class="tracked"{{end}}>
+              <td class="r-icon"><span class="r-ava">{{with $c.HeroIcon .HeroID}}<img src="/assets/{{.}}" alt="" width="30" height="30">{{end}}<span class="r-respawn" data-respawn></span></span></td>
+              <td class="r-name"><b>{{$c.HeroName .HeroID}}</b><small>{{or .Name "аноним"}}</small></td>
+              <td class="num" data-kd>0 / 0</td><td class="num" data-lh>0</td><td class="num" data-gold>0</td>
+            </tr>{{end}}</tbody>
+          </table>
+        </div>
+        {{end}}
+      </div>
+      <div class="map-controls">
+      <div class="player-bar">
+        <button type="button" class="play" data-map-play aria-label="Воспроизвести" title="Воспроизвести · пробел"><svg class="ic ic-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z"/></svg><svg class="ic ic-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg></button>
+        <div class="pb-time"><output data-map-time>0:00</output><span class="muted">/ {{duration $m.Duration}}</span></div>
+        <div class="scrub" data-map-scrub tabindex="0" role="slider" aria-label="Время матча" aria-valuemin="0" aria-valuemax="{{$m.Duration}}" aria-valuenow="{{$m.Duration}}">
+          <div class="scrub-played"></div>
+          <svg class="scrub-adv" viewBox="0 -1 1000 2" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="scrub-marks" aria-hidden="true"></div>
+          <div class="scrub-hover" aria-hidden="true"><span></span></div>
+          <div class="scrub-head" aria-hidden="true"></div>
+        </div>
+        <div class="pb-buttons">
+          <button type="button" class="icon-btn" data-map-step="-1" title="Предыдущее событие" aria-label="Предыдущее событие"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h2v11H3zM13.5 2.5v11L6 8z"/></svg></button>
+          <button type="button" class="icon-btn" data-map-step="1" title="Следующее событие" aria-label="Следующее событие"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2.5h2v11h-2zM2.5 2.5v11L10 8z"/></svg></button>
+          <div class="segmented" role="group" aria-label="Скорость воспроизведения">
+            <button type="button" data-speed="30" aria-pressed="false" title="30 секунд матча за секунду">×30</button>
+            <button type="button" data-speed="60" aria-pressed="true" title="Минута матча за секунду">×60</button>
+            <button type="button" data-speed="120" aria-pressed="false" title="Две минуты матча за секунду">×120</button>
+          </div>
+        </div>
+      </div>
+      <p class="scrub-note muted small">Полоса — перевес по золоту: вверх Силы Света, вниз Силы Тьмы. Точки сверху — убийства, квадраты снизу — строения, «Р» — Рошан, жёлтые полосы — драки; цвет — команда, которой это выгодно.</p>
+      </div>
+    </div>
+
+
+    <div class="map-bottom">
+      <section>
+        <h3>Последние события</h3>
+        <ol class="map-feed" data-map-feed></ol>
+      </section>
+      <section class="map-options">
+        <h3>Что показывать</h3>
+        <label class="check"><input type="checkbox" data-map-show="deaths" checked> Смерти в драках: свежая — иконка героя, позже — крестик цвета команды погибшего</label>
+        <label class="check"><input type="checkbox" data-map-show="wards" checked> Варды: <span class="lg lg-obs"></span> обсервер, <span class="lg lg-sen"></span> сентри, обводка — команда</label>
+        <label class="check"><input type="checkbox" data-map-show="vision" checked> Обзор обсерверов</label>
+        <p class="muted small">Квадраты — башни, прямоугольники — казармы, шестиугольник — Древний; серые разрушены. Схема: строения стоят примерно (OpenDota не даёт их координат), а смерти в драках и варды — там, где были. Пробел — пауза, ← и → — на 10 секунд.</p>
+      </section>
+    </div>
+    {{else}}<p class="not-parsed">Для карты нужен разобранный реплей: позиции берутся из драк и вардов.</p>{{end}}
+  </section>
+</div>
+
+{{/* ---------------- Линии ---------------- */}}
+<div data-panel="lanes">
+  <section class="card">
+    <h2>Линии к 10:00</h2>
+    {{if $a.Lanes}}
+    <p class="muted small">Каждый игрок против соперника на той же линии с тем же местом по нетворсу. «Выиграна» и «проиграна» — разница от 500 золота и от 15%: это оценка.</p>
+    <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Игрок</th><th>Соперник</th><th class="num">Нетворс</th><th class="num">Добивания / денаи</th><th class="num">Опыт</th><th>Итог</th></tr></thead>
+      <tbody>{{range $a.Lanes}}{{$p := $m.Player .Slot}}{{$o := $m.Player .Opponent}}<tr{{if $p.Tracked}} class="tracked"{{end}}>
+        <td>{{template "hero" (dict "C" $c "ID" $p.HeroID)}} <small class="muted">{{if eq .Lane 2}}мид{{else if eq .Lane 1}}низ{{else}}верх{{end}}</small></td>
+        <td>{{template "hero" (dict "C" $c "ID" $o.HeroID)}}</td>
+        <td class="num">{{thousandsf .NW}} : {{thousandsf .OppNW}} <span class="delta {{if ge .NWDiff 0.0}}good{{else}}bad{{end}}">{{signedf .NWDiff}}</span></td>
+        <td class="num">{{thousandsf .LH}}/{{thousandsf .DN}} : {{thousandsf .OppLH}}/{{thousandsf .OppDN}}</td>
+        <td class="num">{{thousandsf .XP}} : {{thousandsf .OppXP}} <span class="delta {{if ge .XPDiff 0.0}}good{{else}}bad{{end}}">{{signedf .XPDiff}}</span></td>
+        <td><span class="lane {{.Outcome}}">{{laneName .Outcome}}</span></td>
+      </tr>{{end}}</tbody>
+    </table>
+    </div>
+    {{else}}<p class="not-parsed">Для линий нужен разобранный реплей.</p>{{end}}
+  </section>
+</div>
+
+{{/* ---------------- Варды ---------------- */}}
+<div data-panel="vision">
+  <section class="card">
+    <h2>Варды</h2>
+    {{if $a.Vision}}
+    <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Игрок</th><th class="num">Обсерверы</th><th class="num">Сентри</th><th class="num">Сколько жил обсервер</th><th class="num">Снято вражеских</th></tr></thead>
+      <tbody>{{range $a.Vision}}{{$p := $m.Player .Slot}}<tr{{if $p.Tracked}} class="tracked"{{end}}>
+        <td>{{template "hero" (dict "C" $c "ID" $p.HeroID)}} <small class="muted">{{team (side .Slot)}}</small></td>
+        <td class="num">{{.Observers}}</td><td class="num">{{.Sentries}}</td>
+        <td class="num">{{if .Observers}}{{clock .ObserverLifetime}}{{else}}—{{end}}</td>
+        <td class="num">{{add .ObserversKilled .SentriesKilled}} <small class="muted">{{.ObserversKilled}} обс. · {{.SentriesKilled}} сент.</small></td>
+      </tr>{{end}}</tbody>
+    </table>
+    </div>
+    <p class="muted small">Сами варды показаны на вкладке «Карта» с ползунком времени.</p>
+    {{else}}<p class="not-parsed">Для вардов нужен разобранный реплей.</p>{{end}}
+  </section>
+</div>
+
+{{/* ---------------- Статистика ---------------- */}}
+<div data-panel="scoreboard">
+{{range $team := (list 0 1)}}{{$players := $m.Radiant}}{{$side := "radiant"}}{{if eq $team 1}}{{$players = $m.Dire}}{{$side = "dire"}}{{end}}
+<section class="card scoreboard {{$side}}">
+  <h2>{{team $side}}{{if or (and (eq $side "radiant") (eq (result $m.RadiantWin) "win")) (and (eq $side "dire") (eq (result $m.RadiantWin) "loss"))}} <span class="winner-tag">победа</span>{{end}}</h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Игрок</th><th class="num">Ур.</th><th class="num">У / С / П</th><th class="num">Доб. / ден.</th><th class="num">GPM / XPM</th><th class="num">Нетворс</th><th class="num">Урон героям</th><th class="num">Урон строениям</th><th class="num">Лечение</th><th>Предметы</th></tr></thead>
+    <tbody>
+    {{range $players}}<tr{{if .Tracked}} class="tracked"{{end}}>
+      <td>
+        {{template "hero" (dict "C" $c "ID" .HeroID)}}
+        <div class="player-name">{{if .Tracked}}<a href="/?account={{.AccountID}}">{{or .Name "Отслеживаемый игрок"}}</a>{{else if .AccountID}}<a href="https://www.opendota.com/players/{{.AccountID}}" rel="noreferrer">{{or .Name "Игрок"}}</a>{{else}}<span class="muted">аноним</span>{{end}}
+          <small class="muted">{{with role .LaneRole}}{{.}} · {{end}}{{rank .RankTier}}{{with .PartySize}}{{if gt (ptr .) 1}} · пати из {{.}}{{end}}{{end}}</small></div>
+      </td>
+      <td class="num">{{num .Level}}</td>
+      <td class="num kda">{{.Kills}} / {{.Deaths}} / {{.Assists}}</td>
+      <td class="num">{{num .LastHits}} / {{num .Denies}}</td>
+      <td class="num">{{num .GPM}} / {{num .XPM}}</td>
+      <td class="num">{{num .NetWorth}}</td>
+      <td class="num">{{num .HeroDamage}}</td>
+      <td class="num">{{num .TowerDamage}}</td>
+      <td class="num">{{num .HeroHealing}}</td>
+      <td><div class="items">{{range .Items}}{{template "item" (dict "C" $c "Slot" .)}}{{end}}<span class="items-sep"></span>{{range .Backpack}}{{if .ID}}{{template "item" (dict "C" $c "Slot" .)}}{{end}}{{end}}{{if .Neutral.ID}}<span class="neutral">{{template "item" (dict "C" $c "Slot" .Neutral)}}{{if .Enhancement.ID}}{{template "item" (dict "C" $c "Slot" .Enhancement)}}{{end}}</span>{{end}}</div></td>
+    </tr>{{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}
+<p class="muted small">Под предметом — время первой покупки. У — убийства, С — смерти, П — помощь.</p>
+{{range $p := (concat $m.Radiant $m.Dire)}}{{if $p.Purchases}}
+<details class="card purchases">
+  <summary><h2>{{$c.HeroName $p.HeroID}}: все покупки</h2></summary>
+  <ol class="purchase-list">{{range $p.Purchases}}{{$it := $c.ItemByKey .Item}}<li><span class="time">{{clock .Time}}</span>{{if $it.ImgPath}}<img src="/assets/{{$it.ImgPath}}" alt="" width="32" height="23" loading="lazy">{{end}}<span>{{$it.Name}}</span></li>{{end}}</ol>
+</details>
+{{end}}{{end}}
+</div>
+
+{{/* ---------------- Графики ---------------- */}}
+<div data-panel="graphs">
+<section class="card">
+  <h2>Преимущество по золоту и опыту</h2>
+  {{if $m.GoldAdv}}
+  <div class="chart"><canvas data-chart="advantage" data-source="chart-data" aria-label="Преимущество Сил Света по золоту и опыту по минутам"></canvas></div>
+  <p class="muted small">Выше нуля — впереди Силы Света, ниже — Силы Тьмы.</p>
+  {{else}}<p class="not-parsed">Нужен разобранный реплей: поминутные графики появятся после разбора.</p>{{end}}
+</section>
+<section class="card">
+  <h2>Золото и добивания игроков</h2>
+  {{if $m.Series}}
+  <div class="chart-controls">
+    <div class="segmented" data-curve-metric><button type="button" data-metric="gold" aria-pressed="true">Золото</button><button type="button" data-metric="lh" aria-pressed="false">Добивания</button></div>
+    <div class="segmented" data-curve-team><button type="button" data-team="all" aria-pressed="true">Все</button><button type="button" data-team="radiant" aria-pressed="false">Силы Света</button><button type="button" data-team="dire" aria-pressed="false">Силы Тьмы</button></div>
+  </div>
+  <div class="chart tall"><canvas data-chart="players" data-source="chart-data" aria-label="Золото или добивания каждого игрока по минутам"></canvas></div>
+  <p class="muted small">Наведите на график: игроки в подсказке отсортированы по значению на этой минуте. Отслеживаемые игроки нарисованы толще; клик по имени в легенде скрывает линию.</p>
+  {{else}}<p class="not-parsed">Нужен разобранный реплей.</p>{{end}}
+</section>
+{{if $m.Benchmarks}}
+<section class="card">
+  <h2>Сравнение с другими игроками на тех же героях</h2>
+  <p class="muted small">Перцентиль по данным OpenDota: 80% значит «лучше, чем у 80% игроков на этом герое».</p>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Игрок</th><th class="num">GPM</th><th class="num">XPM</th><th class="num">Убийства/мин</th><th class="num">Добивания/мин</th><th class="num">Урон героям/мин</th><th class="num">Урон строениям</th></tr></thead>
+    <tbody>{{range $p := (concat $m.Radiant $m.Dire)}}{{with $p.Benchmarks}}<tr{{if $p.Tracked}} class="tracked"{{end}}>
+      <td>{{template "hero" (dict "C" $c "ID" $p.HeroID)}}</td>
+      {{range $k := (strings "gold_per_min" "xp_per_min" "kills_per_min" "last_hits_per_min" "hero_damage_per_min" "tower_damage")}}<td class="num">{{with index $p.Benchmarks $k}}<span class="pct-bar"><span style="{{pctBar .}}"></span></span>{{pct .}}{{else}}—{{end}}</td>{{end}}
+    </tr>{{end}}{{end}}</tbody>
+  </table>
+  </div>
+</section>
+{{end}}
+</div>
+
+{{/* ---------------- Чат ---------------- */}}
+<div data-panel="chat">
+  <section class="card">
+    <h2>Чат матча</h2>
+    {{if $a.Chat}}
+    <ol class="chat">
+      {{range $a.Chat}}{{if .Slot}}{{$p := $m.Player (ptr .Slot)}}<li class="{{side (ptr .Slot)}}">
+        <span class="t">{{clock .Time}}</span>
+        <span class="who">{{template "hero_icon" (dict "C" $c "ID" $p.HeroID)}}<b>{{$c.HeroName $p.HeroID}}</b>{{with $p.Name}}<small>{{.}}</small>{{end}}</span>
+        <span class="msg{{if .Wheel}} wheel{{end}}">{{if .Wheel}}<span class="wheel-tag">колесо</span>{{end}}{{.Text}}</span>
+      </li>{{else}}<li><span class="t">{{clock .Time}}</span><span class="who">—</span><span class="msg{{if .Wheel}} wheel{{end}}">{{.Text}}</span></li>{{end}}{{end}}
+    </ol>
+    <p class="muted small">Фразы колеса чата OpenDota отдаёт на английском.</p>
+    {{else if $a.Parsed}}<p class="not-parsed">В чате никто ничего не писал.</p>
+    {{else}}<p class="not-parsed">Для чата нужен разобранный реплей.</p>{{end}}
+  </section>
+</div>
+
+<script type="application/json" id="chart-data">{{$m.Charts}}</script>
+{{end}}

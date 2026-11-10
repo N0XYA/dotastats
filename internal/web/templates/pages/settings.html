@@ -1,0 +1,75 @@
+{{define "content"}}{{$d := .Data}}
+<h1>Аккаунты и настройки</h1>
+
+{{with $d.Done}}<p class="flash">
+  {{if eq . "saved"}}Настройки сохранены. Они начнут действовать со следующего сбора.
+  {{else if eq . "added"}}Аккаунт добавлен. История его матчей загружается в фоне.{{if $d.NoMatches}} На OpenDota пока нет его открытых матчей: в Dota 2 откройте «Настройки → Параметры → Сообщество» и включите «Открытая история матчей» (Expose Public Match Data), затем сыграйте матч.{{end}}
+  {{else if eq . "remove"}}Аккаунт удалён вместе с матчами, которые больше никто из отслеживаемых не играл ({{$d.DoneCount}}).
+  {{else if eq . "pause"}}Аккаунт на паузе: данные остаются, но новые матчи не собираются.
+  {{else if eq . "resume"}}Сбор для аккаунта возобновлён.
+  {{else if eq . "pruned"}}Правила хранения применены, освобождено {{$d.DoneCount}}.
+  {{end}}</p>{{end}}
+
+<section class="card">
+  <h2>Отслеживаемые аккаунты</h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Аккаунт</th><th>Роль</th><th>Состояние</th><th class="num">Ранг</th><th class="num">Матчей</th><th>Обновлён</th><th></th></tr></thead>
+    <tbody>{{range .Accounts}}<tr>
+      <td><a href="/?account={{.ID}}">{{.DisplayName}}</a>{{if .Label}} <small class="muted">{{.Name}}</small>{{end}}<br><small class="muted">ID {{.ID}}</small></td>
+      <td>{{if eq .Role "owner"}}владелец{{else}}друг{{end}}</td>
+      <td>{{if .Active}}<span class="badge parsed">собирается</span>{{else}}<span class="badge muted">на паузе</span>{{end}}</td>
+      <td class="num">{{rank .RankTier}}</td>
+      <td class="num">{{thousands .Matches}}</td>
+      <td>{{if .LastSyncedAt}}{{template "time" .LastSyncedAt}}{{else}}<span class="muted">ещё нет</span>{{end}}</td>
+      <td class="actions">
+        {{if .Active}}<form method="post" action="/accounts/{{.ID}}/pause"><button class="link">Пауза</button></form>
+        {{else}}<form method="post" action="/accounts/{{.ID}}/resume"><button class="link">Возобновить</button></form>{{end}}
+        {{if ne .Role "owner"}}<form method="post" action="/accounts/{{.ID}}/remove" onsubmit="return confirm('Удалить {{.DisplayName}}? Матчи, которые больше никто из отслеживаемых не играл, будут удалены.')"><button class="link danger">Удалить</button></form>{{end}}
+      </td>
+    </tr>{{end}}</tbody>
+  </table>
+  </div>
+
+  <form class="add-account" method="post" action="/accounts">
+    <h3>Добавить друга</h3>
+    <div class="row">
+      <label class="grow">ID аккаунта, SteamID64 или ссылка на профиль <input name="account" value="{{$d.AddInput}}" placeholder="https://www.dotabuff.com/players/…" required></label>
+      <label>Подпись (необязательно) <input name="label" value="{{$d.AddLabel}}" maxlength="40"></label>
+      <button type="submit">Добавить</button>
+    </div>
+    {{with $d.AddError}}<p class="error">{{.}}</p>{{end}}
+    {{if $d.AddHint}}<p class="hint">Если ID верный, игроку нужно включить в Dota 2 «Открытая история матчей» (Expose Public Match Data) в «Настройки → Параметры → Сообщество» и сыграть матч.</p>{{end}}
+  </form>
+</section>
+
+<section class="card">
+  <h2>Сбор и хранение данных</h2>
+  {{with $d.Error}}<p class="error">{{.}}</p>{{end}}
+  <form class="settings" method="post" action="/settings">
+    {{$s := $d.Settings}}{{$def := $d.Defaults}}
+    <label>Дневной лимит запросов <input type="number" name="daily_budget" value="{{$s.DailyBudget}}" min="1" max="100000"><small>Запросов к OpenDota в сутки (по UTC). Бесплатно OpenDota даёт около 3 000. По умолчанию {{$def.DailyBudget}}.</small></label>
+    <label>Сбор каждые (минут) <input type="number" name="collect_interval_minutes" value="{{$s.IntervalMinutes}}" min="5" max="1440"><small>По умолчанию {{$def.IntervalMinutes}}.</small></label>
+    <label>Свежие матчи (дней) <input type="number" name="recent_days" value="{{$s.RecentDays}}" min="0" max="365"><small>Такие матчи загружаются первыми и отправляются на разбор. По умолчанию {{$def.RecentDays}}.</small></label>
+    <label>Доля лимита на старые матчи (%) <input type="number" name="backfill_budget_pct" value="{{$s.BackfillBudgetPct}}" min="0" max="100"><small>Загрузка старых матчей останавливается на день, когда израсходована эта доля лимита. По умолчанию {{$def.BackfillBudgetPct}}.</small></label>
+    <label>Хранить исходные данные (дней) <input type="number" name="raw_retention_days" value="{{$s.RawRetentionDays}}" min="-1" max="36500"><small>Нужны только для пересборки таблиц после обновления программы; страницы их не используют. −1 — хранить всегда. По умолчанию {{$def.RawRetentionDays}}.</small></label>
+    <label>Хранить графики, покупки и варды (дней) <input type="number" name="detail_retention_days" value="{{$s.DetailRetentionDays}}" min="-1" max="36500"><small>У старых матчей останется таблица и разбор. −1 — хранить всегда (по умолчанию).</small></label>
+    <label>Хранить матчи (дней) <input type="number" name="match_retention_days" value="{{$s.MatchRetentionDays}}" min="-1" max="36500"><small>Более старые матчи удаляются целиком. −1 — хранить всегда (по умолчанию).</small></label>
+    <div class="row"><button type="submit">Сохранить настройки</button></div>
+  </form>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Место на диске</h2>
+    <p>База данных занимает <strong>{{bytes $d.DBSize}}</strong>.</p>
+    <form method="post" action="/prune"><button type="submit">Очистить сейчас</button></form>
+    <p class="muted small">Сразу применяет правила хранения выше, не дожидаясь ежедневной очистки, и уменьшает файл базы.</p>
+  </section>
+  <section class="card">
+    <h2>Запросы к API сегодня</h2>
+    <p>Использовано <strong>{{thousands $d.CallsToday}}</strong> из {{thousands $d.Settings.DailyBudget}} (сутки по UTC). Сначала собираются матчи владельца, остаток делится между друзьями по очереди.</p>
+    {{if $d.Calls}}<table class="table"><tbody>{{range $d.Calls}}<tr><td>{{if .AccountID}}{{or .Name .AccountID}}{{else}}Справочники и общая статистика{{end}}</td><td class="num">{{thousands .Calls}}</td></tr>{{end}}</tbody></table>{{end}}
+  </section>
+</div>
+{{end}}

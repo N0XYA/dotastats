@@ -1,0 +1,42 @@
+{{define "base"}}<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Title}}{{.Title}} · {{end}}DotaStats</title>
+<link rel="stylesheet" href="/static/app.css?v={{.Asset}}">
+<script src="/static/vendor/htmx-2.0.11.min.js" defer></script>
+<script src="/static/vendor/chart-4.5.1.umd.min.js" defer></script>
+<script src="/static/app.js?v={{.Asset}}" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">Dota<span>Stats</span></a>
+    {{if .Accounts}}
+    <nav class="nav">
+      <a href="/" {{if eq .Nav "overview"}}aria-current="page"{{end}}>Обзор</a>
+      <a href="/matches" {{if eq .Nav "matches"}}aria-current="page"{{end}}>Матчи</a>
+      <a href="/heroes" {{if eq .Nav "heroes"}}aria-current="page"{{end}}>Герои</a>
+      <a href="/settings" {{if eq .Nav "settings"}}aria-current="page"{{end}}>Аккаунты</a>
+      <a href="/status" {{if eq .Nav "status"}}aria-current="page"{{end}}>Статус</a>
+    </nav>
+    <div class="topbar-actions">
+      <form class="profile" method="get" action="{{.Path}}">
+        <label class="visually-hidden" for="profile-select">Профиль</label>
+        <select id="profile-select" name="account" onchange="this.form.submit()" title="Чью статистику показывать">
+          {{range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Profile.ID}} selected{{end}}>{{.DisplayName}}{{if eq .Role "owner"}} (вы){{end}}{{if not .Active}} · на паузе{{end}}</option>{{end}}
+        </select>
+        <noscript><button type="submit">Показать</button></noscript>
+      </form>
+      <form method="post" action="/refresh"><button class="refresh" hx-post="/refresh" hx-swap="outerHTML" title="Собрать новые матчи сейчас">Обновить</button></form>
+    </div>
+    {{end}}
+  </div>
+</header>
+<main class="page">
+{{template "content" .}}
+</main>
+<footer class="footer">DotaStats {{.Version}} · данные <a href="https://www.opendota.com" rel="noreferrer">OpenDota</a> · время показано в вашем часовом поясе</footer>
+</body>
+</html>{{end}}

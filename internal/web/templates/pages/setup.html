@@ -1,0 +1,16 @@
+{{define "content"}}{{$d := .Data}}
+<section class="setup card">
+  <h1>Добро пожаловать в DotaStats</h1>
+  <p>Укажите свой аккаунт Dota 2. Он станет владельцем этой копии программы; друзей можно добавить потом.</p>
+  <form method="post" action="/setup">
+    <label>ID аккаунта, SteamID64 или ссылка на профиль
+      <input name="account" value="{{$d.Input}}" placeholder="https://www.dotabuff.com/players/…" required autofocus></label>
+    <button type="submit">Начать</button>
+  </form>
+  {{with $d.Error}}<p class="error">{{.}}</p>{{end}}
+  <div class="hint{{if $d.Hint}} strong{{end}}">
+    <p><strong>Где взять:</strong> Friend ID на вкладке «Друзья» в Dota 2 или ссылка на ваш профиль OpenDota, Dotabuff, Stratz или Steam (ссылка вида <code>steamcommunity.com/profiles/&lt;число&gt;</code>; ссылки с ником <code>/id/имя</code> пока не работают).</p>
+    <p><strong>Матчи должны быть открытыми:</strong> в Dota 2 откройте «Настройки → Параметры → Сообщество» и включите «Открытая история матчей» (Expose Public Match Data).</p>
+  </div>
+</section>
+{{end}}

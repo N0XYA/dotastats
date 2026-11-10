@@ -1,0 +1,10 @@
+.git
+.gitignore
+.DS_Store
+data
+dist
+dev_cache
+dotastats
+dotastats.exe
+.env
+.env.*

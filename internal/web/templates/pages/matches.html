@@ -1,0 +1,38 @@
+{{define "content"}}
+<h1>Матчи</h1>
+{{template "filter_bar" .}}
+{{template "match_table" .}}
+{{end}}
+
+{{define "match_table"}}{{$d := .Data}}{{$c := .C}}{{$q := .Query}}
+<div id="results">
+  {{if $d.Rows}}
+  <div class="table-wrap">
+  <table class="table matches">
+    <thead><tr><th>Герой</th><th>Итог</th><th class="num">У / С / П</th><th class="num">GPM</th><th class="num">Добивания</th><th class="num">Длительность</th><th>Режим</th><th>Пати</th><th>Когда</th><th>Разбор</th></tr></thead>
+    <tbody>
+    {{range $d.Rows}}<tr class="row-link" data-href="/matches/{{.MatchID}}">
+      <td class="nowrap"><a href="/matches/{{.MatchID}}">{{template "hero" (dict "C" $c "ID" .HeroID)}}</a>{{with role .LaneRole}}<small class="muted"> · {{.}}</small>{{end}}</td>
+      <td>{{template "result" .Win}}</td>
+      <td class="num kda">{{.Kills}} / {{.Deaths}} / {{.Assists}}</td>
+      <td class="num">{{num .GPM}}</td>
+      <td class="num">{{num .LastHits}}</td>
+      <td class="num">{{duration .Duration}}</td>
+      <td class="nowrap">{{$c.GameMode .GameMode}}{{if eq .LobbyType 7}} <small class="muted">рейтинг</small>{{end}}</td>
+      <td>{{with .PartySize}}{{if eq (ptr .) 1}}соло{{else}}{{.}}{{end}}{{else}}—{{end}}</td>
+      <td class="nowrap">{{template "time" .StartTime}}</td>
+      <td>{{template "parse_badge" .}}</td>
+    </tr>{{end}}
+    </tbody>
+  </table>
+  </div>
+  <nav class="pager">
+    {{if gt $d.Page 1}}<a href="{{query $q "page" (itoa (sub $d.Page 1))}}" hx-get="{{query $q "page" (itoa (sub $d.Page 1))}}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">← Новее</a>{{end}}
+    <span>Страница {{$d.Page}} из {{$d.Pages}} · матчи {{index $d.Showing 0}}–{{index $d.Showing 1}} из {{$d.Total}}</span>
+    {{if lt $d.Page $d.Pages}}<a href="{{query $q "page" (itoa (add $d.Page 1))}}" hx-get="{{query $q "page" (itoa (add $d.Page 1))}}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">Старее →</a>{{end}}
+  </nav>
+  {{else}}
+  <p class="card empty-state">Матчей{{if $d.Filter.ShowClear}} с такими фильтрами{{end}} нет.</p>
+  {{end}}
+</div>
+{{end}}

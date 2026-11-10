@@ -1,0 +1,45 @@
+{{define "content"}}{{$d := .Data}}
+<h1>Статус</h1>
+<div class="grid-2">
+  <section class="card">
+    <h2>Сбор данных</h2>
+    <dl class="facts">
+      <dt>Сейчас</dt><dd>{{if not $d.Scheduler}}не работает в этом режиме{{else if $d.Running}}<span class="badge pending">идёт сбор</span>{{else}}ждёт следующего запуска{{end}}</dd>
+      <dt>Последний запуск</dt><dd>{{if $d.LastRunStarted}}{{template "time" $d.LastRunStarted}}{{else}}ещё не было{{end}}</dd>
+      <dt>Завершён</dt><dd>{{if $d.LastRunFinished}}{{template "time" $d.LastRunFinished}}{{else}}—{{end}}</dd>
+      <dt>Результат</dt><dd>{{if $d.LastRunError}}<span class="error">{{$d.LastRunError}}</span>{{else if $d.LastRunFinished}}без ошибок{{else}}—{{end}}</dd>
+      <dt>Справочники</dt><dd>{{if $d.ConstantsSynced}}{{template "time" $d.ConstantsSynced}}{{else}}ещё не загружены{{end}}</dd>
+      <dt>Статистика героев</dt><dd>{{if $d.AggregatesSynced}}{{template "time" $d.AggregatesSynced}}{{else}}ещё не загружена{{end}}</dd>
+      <dt>Очистка</dt><dd>{{if $d.RetentionRan}}{{template "time" $d.RetentionRan}}{{else}}ещё не было{{end}}</dd>
+      <dt>База данных</dt><dd>{{bytes $d.DBSize}}</dd>
+    </dl>
+  </section>
+  <section class="card">
+    <h2>Запросы к API сегодня</h2>
+    <p><strong>{{thousands $d.CallsToday}}</strong> из {{thousands $d.DailyBudget}} (сутки по UTC)</p>
+    <div class="meter"><span style="{{pctBar (divf $d.CallsToday $d.DailyBudget)}}"></span></div>
+    {{if $d.CallsByAccount}}<table class="table"><tbody>{{range $d.CallsByAccount}}<tr><td>{{if .AccountID}}{{or .Name .AccountID}}{{else}}Справочники и общая статистика{{end}}</td><td class="num">{{thousands .Calls}}</td></tr>{{end}}</tbody></table>{{end}}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Очередь</h2>
+  <p>Ждут полной загрузки: {{count $d.DetailsBacklog "матч" "матча" "матчей"}}. Разбор реплеев:
+    {{with index $d.ParseCounts "pending"}}в очереди {{.}}{{else}}очередь пуста{{end}},
+    готово {{index $d.ParseCounts "done"}}, реплей недоступен {{index $d.ParseCounts "expired"}}, ошибок {{index $d.ParseCounts "failed"}}.</p>
+  {{if $d.ParseQueue}}
+  <h3>Ждут разбора</h3>
+  <table class="table">
+    <thead><tr><th>Матч</th><th>Запрошен</th><th>Следующая проверка</th><th class="num">Проверок</th></tr></thead>
+    <tbody>{{range $d.ParseQueue}}<tr><td><a href="/matches/{{.MatchID}}">{{.MatchID}}</a></td><td>{{template "time" .RequestedAt}}</td><td>{{if .NextCheck}}{{template "time" .NextCheck}}{{else}}при следующем сборе{{end}}</td><td class="num">{{.Attempts}}</td></tr>{{end}}</tbody>
+  </table>
+  {{end}}
+  {{if $d.Problems}}
+  <h3>Не удалось разобрать</h3>
+  <table class="table">
+    <thead><tr><th>Матч</th><th>Итог</th><th>Запрошен</th><th>Причина</th></tr></thead>
+    <tbody>{{range $d.Problems}}<tr><td><a href="/matches/{{.MatchID}}">{{.MatchID}}</a></td><td><span class="badge {{.Status}}">{{if eq .Status "expired"}}реплей недоступен{{else}}ошибка{{end}}</span></td><td>{{template "time" .RequestedAt}}</td><td class="muted">{{if eq .Status "expired"}}Разбор закончился без результата: реплей, скорее всего, уже удалён.{{else}}{{.LastError}}{{end}}</td></tr>{{end}}</tbody>
+  </table>
+  {{end}}
+</section>
+{{end}}

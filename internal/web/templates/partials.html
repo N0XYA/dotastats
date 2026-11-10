@@ -1,0 +1,63 @@
+{{/* Shared pieces. Partials that need lookups get (dict "C" $.C ...). */}}
+
+{{define "time"}}<time datetime="{{iso .}}" data-local>{{utc .}}</time>{{end}}
+{{define "date"}}<time datetime="{{iso .}}" data-local="date">{{utc .}}</time>{{end}}
+
+{{define "hero"}}<span class="hero">{{with .C.HeroImage .ID}}<img src="/assets/{{.}}" alt="" width="48" height="27" loading="lazy">{{else}}<span class="hero-ph"></span>{{end}}<span class="hero-name">{{.C.HeroName .ID}}</span></span>{{end}}
+
+{{define "hero_icon"}}{{with .C.HeroIcon .ID}}<img class="hero-icon" src="/assets/{{.}}" alt="" width="24" height="24" loading="lazy">{{end}}{{end}}
+
+{{define "item"}}{{if .Slot.ID}}{{$it := .C.Item .Slot.ID}}<span class="item" title="{{$it.Name}}{{with .Slot.BoughtAt}} · куплен на {{clock .}}{{end}}">{{if $it.ImgPath}}<img src="/assets/{{$it.ImgPath}}" alt="{{$it.Name}}" width="40" height="29" loading="lazy">{{else}}<span class="item-name">{{$it.Name}}</span>{{end}}{{with .Slot.BoughtAt}}<small>{{clock .}}</small>{{end}}</span>{{else}}<span class="item empty"></span>{{end}}{{end}}
+
+{{define "result"}}{{$r := result .}}<span class="result {{$r}}">{{if eq $r "win"}}Победа{{else if eq $r "loss"}}Поражение{{else}}?{{end}}</span>{{end}}
+
+{{define "parse_badge"}}{{if not .HasDetails}}<span class="badge muted" title="Пока сохранены только основные цифры; полные данные подгружаются в фоне">базовые данные</span>
+{{- else if .IsParsed}}<span class="badge parsed" title="Реплей разобран: доступны графики, хронология и карта">разобран</span>
+{{- else if eq .ParseState "pending"}}<span class="badge pending" title="Разбор запрошен, скоро проверим снова">в очереди</span>
+{{- else}}<span class="parse-cell"><span class="badge {{or .ParseState "unparsed"}}" title="{{if eq .ParseState "expired"}}Реплей, скорее всего, уже недоступен{{else if eq .ParseState "failed"}}OpenDota не закончил разбор{{else}}Реплей ещё не разобран{{end}}">{{if eq .ParseState "expired"}}реплей недоступен{{else if eq .ParseState "failed"}}ошибка разбора{{else}}не разобран{{end}}</span>
+<form method="post" action="/matches/{{.MatchID}}/parse"><button class="link" hx-post="/matches/{{.MatchID}}/parse" hx-target="closest .parse-cell" hx-swap="outerHTML">запросить разбор</button></form></span>{{end}}{{end}}
+
+{{define "filter_bar"}}{{$f := .Data.Filter}}{{$q := .Query}}{{$c := .C}}
+<form class="filters" method="get" action="{{.Path}}" hx-get="{{.Path}}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, submit">
+  {{with $q.Get "account"}}<input type="hidden" name="account" value="{{.}}">{{end}}
+  {{with $q.Get "sort"}}<input type="hidden" name="sort" value="{{.}}">{{end}}
+  <label>С даты <input type="date" name="from" value="{{$q.Get "from"}}"></label>
+  <label>По дату <input type="date" name="to" value="{{$q.Get "to"}}"></label>
+  <label>Патч <select name="patch"><option value="">Любой</option>{{range $f.Options.Patches}}<option value="{{.}}"{{if eq ($q.Get "patch") (itoa .)}} selected{{end}}>{{$c.PatchName (intp .)}}</option>{{end}}</select></label>
+  <label>Режим <select name="mode"><option value="">Любой</option>{{range $f.Options.GameModes}}<option value="{{.}}"{{if eq ($q.Get "mode") (itoa .)}} selected{{end}}>{{$c.GameMode .}}</option>{{end}}</select></label>
+  <label>Тип <select name="ranked"><option value="">Любой</option><option value="ranked"{{if eq $f.Ranked "ranked"}} selected{{end}}>Рейтинговые</option><option value="unranked"{{if eq $f.Ranked "unranked"}} selected{{end}}>Обычные</option></select></label>
+  {{if not $f.FixedHero}}<label>Герой <select name="hero"><option value="">Любой</option>{{range $c.HeroesByName $f.Options.Heroes}}<option value="{{.ID}}"{{if eq ($q.Get "hero") (itoa .ID)}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+  <label>Роль <select name="role"><option value="">Любая</option>{{range $r := (list 1 2 3 4)}}<option value="{{$r}}"{{if eq ($q.Get "role") (itoa $r)}} selected{{end}}>{{role (intp $r)}}</option>{{end}}</select></label>
+  <label>Результат <select name="result"><option value="">Любой</option><option value="win"{{if eq $f.Result "win"}} selected{{end}}>Победа</option><option value="loss"{{if eq $f.Result "loss"}} selected{{end}}>Поражение</option></select></label>
+  <label>Пати <select name="party"><option value="">Любое</option>{{range $n := (list 1 2 3 4 5)}}<option value="{{$n}}"{{if eq ($q.Get "party") (itoa $n)}} selected{{end}}>{{if eq $n 1}}Соло{{else}}{{count $n "игрок" "игрока" "игроков"}}{{end}}</option>{{end}}</select></label>
+  <noscript><button type="submit">Применить</button></noscript>
+  {{if $f.ShowClear}}<a class="reset" href="{{.Path}}">Сбросить фильтры</a>{{end}}
+</form>
+{{end}}
+
+{{/* A player's analysis card: (dict "C" $c "P" player row "A" analysis "Main" bool). */}}
+{{define "pcard"}}{{$p := .P}}{{$a := .A}}{{$c := .C}}
+<article class="pcard {{side $p.Slot}}{{if $p.Tracked}} tracked{{end}}{{if .Main}} main{{end}}">
+  <header class="pcard-head">
+    {{with $c.HeroImage $p.HeroID}}<img class="pcard-hero" src="/assets/{{.}}" alt="" width="64" height="36">{{end}}
+    <div class="pcard-who">
+      <strong>{{$c.HeroName $p.HeroID}}</strong>
+      <span>{{if $p.Name}}{{$p.Name}}{{else}}аноним{{end}}{{if $p.Tracked}} · отслеживается{{end}}</span>
+    </div>
+    {{with $a.Rating}}<span class="verdict {{.}}" title="Оценка влияния {{$a.Score}} из 100: перцентили OpenDota, линия и смерти. Это оценка по правилам, а не факт.">{{ratingName .}} <b>{{$a.Score}}</b></span>{{end}}
+  </header>
+  <div class="pcard-stats">
+    <span title="Убийства / смерти / помощь"><b>{{$p.Kills}}</b>/<b>{{$p.Deaths}}</b>/<b>{{$p.Assists}}</b></span>
+    <span title="Золото в минуту"><b>{{num $p.GPM}}</b> GPM</span>
+    {{with $a.Lane}}<span class="lane {{.}}" title="Линия к 10:00 против соперника по линии (оценка)">линия: {{laneName .}}</span>{{end}}
+  </div>
+  {{with $a.Awards}}<div class="awards">{{range .}}<span class="award">★ {{.}}</span>{{end}}</div>{{end}}
+  {{if or $a.Good $a.Bad}}
+  <div class="pcard-lists">
+    {{with $a.Good}}<ul class="pros">{{range .}}<li>{{.}}</li>{{end}}</ul>{{end}}
+    {{with $a.Bad}}<ul class="cons">{{range .}}<li>{{.}}</li>{{end}}</ul>{{end}}
+  </div>
+  {{end}}
+  {{with $a.Improve}}<p class="tip"><span>Совет</span>{{.}}</p>{{end}}
+</article>
+{{end}}
